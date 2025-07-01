@@ -3,13 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <title>Portal Proveedores</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
-    body { font-family: sans-serif; max-width: 600px; margin: 40px auto; }
-    input, button { padding: 10px; margin: 5px 0; width: 100%; }
+    body { font-family: sans-serif; max-width: 800px; margin: 40px auto; }
+    input, button, select { padding: 10px; margin: 5px 0; width: 100%; }
     table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; font-size: 14px; }
     th { background: #f0f0f0; }
     #error { color: red; margin-top: 10px; }
+    #resumen { font-weight: bold; margin: 10px 0; }
+    #acciones { margin-top: 10px; display: flex; gap: 10px; }
+    #acciones button { width: auto; flex: 1; }
   </style>
 </head>
 <body>
@@ -20,17 +24,40 @@
   <button onclick="login()">Ingresar</button>
 
   <div id="error"></div>
+
+  <div id="filtros" style="display:none;">
+    <label for="filtroEspecie">Filtrar por especie:</label>
+    <select id="filtroEspecie" onchange="filtrarEspecie()"></select>
+    <div id="resumen"></div>
+    <div id="acciones">
+      <button onclick="descargarExcel()">📥 Descargar Excel</button>
+    </div>
+  </div>
+
   <div id="tabla"></div>
 
   <script>
+    let entregasOriginal = [];
+    let entregasFiltradas = [];
+
+    function convertirFecha(excelNumber) {
+      const baseDate = new Date(1899, 11, 30);
+      const dias = parseInt(excelNumber);
+      if (isNaN(dias)) return excelNumber;
+      const fecha = new Date(baseDate.getTime() + dias * 86400000);
+      return fecha.toLocaleDateString("es-AR");
+    }
+
     async function login() {
       const cui = document.getElementById("cui").value.trim();
       const password = document.getElementById("password").value.trim();
       const errorDiv = document.getElementById("error");
       const tablaDiv = document.getElementById("tabla");
+      const filtrosDiv = document.getElementById("filtros");
 
       errorDiv.textContent = "";
       tablaDiv.innerHTML = "";
+      filtrosDiv.style.display = "none";
 
       if (!cui || !password) {
         errorDiv.textContent = "Por favor complete CUIT y contraseña.";
@@ -49,40 +76,95 @@
           return;
         }
 
-        if (!res.ok) {
-          errorDiv.textContent = "❌ Error en el servidor.";
-          return;
-        }
-
         const data = await res.json();
-
-        if (data.length === 0) {
+        if (!data.length) {
           tablaDiv.innerHTML = "<p>No hay entregas registradas.</p>";
           return;
         }
 
-        // Mostrar la tabla
-        let html = "<table><thead><tr>";
-        Object.keys(data[0]).forEach(key => {
-          html += `<th>${key}</th>`;
-        });
-        html += "</tr></thead><tbody>";
-
-        data.forEach(row => {
-          html += "<tr>";
-          Object.values(row).forEach(val => {
-            html += `<td>${val}</td>`;
-          });
-          html += "</tr>";
-        });
-
-        html += "</tbody></table>";
-        tablaDiv.innerHTML = html;
+        entregasOriginal = data;
+        mostrarFiltrosYTabla(data);
 
       } catch (err) {
         errorDiv.textContent = "❌ Error de red.";
         console.error(err);
       }
+    }
+
+    function mostrarFiltrosYTabla(data) {
+      const especies = [...new Set(data.map(e => e.Especie).filter(Boolean))];
+      const select = document.getElementById("filtroEspecie");
+
+      select.innerHTML = `<option value="TODAS">Todas las especies</option>`;
+      especies.forEach(v => {
+        select.innerHTML += `<option value="${v}">${v}</option>`;
+      });
+
+      document.getElementById("filtros").style.display = "block";
+      filtrarEspecie();
+    }
+
+    function filtrarEspecie() {
+      const especie = document.getElementById("filtroEspecie").value;
+      entregasFiltradas = especie === "TODAS"
+        ? entregasOriginal
+        : entregasOriginal.filter(e => e.Especie === especie);
+      renderTabla(entregasFiltradas);
+    }
+
+    function renderTabla(data) {
+      const tablaDiv = document.getElementById("tabla");
+      const resumenDiv = document.getElementById("resumen");
+
+      if (!data.length) {
+        tablaDiv.innerHTML = "<p>No hay datos.</p>";
+        resumenDiv.textContent = "";
+        return;
+      }
+
+      const totalKgs = data.reduce((sum, row) => sum + Number(row.KgsD || 0), 0);
+      resumenDiv.textContent = `Total kilos entregados: ${totalKgs.toLocaleString("es-AR")} kg`;
+
+      const columnasOcultas = ["pagado", "ProveedorT"];
+      const encabezados = Object.keys(data[0]).filter(k => !columnasOcultas.includes(k));
+
+      let html = "<table><thead><tr>";
+      encabezados.forEach(k => html += `<th>${k}</th>`);
+      html += "</tr></thead><tbody>";
+
+      data.forEach(row => {
+        html += "<tr>";
+        encabezados.forEach(k => {
+          let val = row[k];
+          if (k === "Fecha") val = convertirFecha(val);
+          if (k === "KgsD") val = Number(val).toLocaleString("es-AR");
+          html += `<td>${val}</td>`;
+        });
+        html += "</tr>";
+      });
+
+      html += "</tbody></table>";
+      tablaDiv.innerHTML = html;
+    }
+
+    function descargarExcel() {
+      const columnasOcultas = ["pagado", "ProveedorT"];
+      const datosExportar = entregasFiltradas.map(row => {
+        const fila = {};
+        for (let key in row) {
+          if (!columnasOcultas.includes(key)) {
+            let val = row[key];
+            if (key === "Fecha") val = convertirFecha(val);
+            fila[key] = val;
+          }
+        }
+        return fila;
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(datosExportar);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Entregas");
+      XLSX.writeFile(workbook, "entregas.xlsx");
     }
   </script>
 </body>
