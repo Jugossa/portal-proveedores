@@ -2,6 +2,10 @@ const express = require('express');
 const multer = require('multer');
 const XLSX = require('xlsx');
 const fs = require('fs');
+const express = require('express');
+const multer = require('multer');
+const XLSX = require('xlsx');
+const fs = require('fs');
 const cors = require('cors');
 const path = require('path');
 
@@ -10,13 +14,12 @@ app.use(cors());
 
 const upload = multer({ dest: 'uploads/' });
 
+// =================== RAÍZ ===================
 app.get("/", (req, res) => {
-  res.send("Servidor funcionando. Endpoints: /upload-proveedores, /upload-profru");
+  res.send("Servidor funcionando. Endpoints: /upload-proveedores, /upload-profru, /profru");
 });
 
-// ===========================================
-// 🔄 CARGA DE PROVEEDORES
-// ===========================================
+// =================== PROVEEDORES ===================
 app.post('/upload-proveedores', upload.single('file'), (req, res) => {
   try {
     const filePath = req.file.path;
@@ -40,9 +43,7 @@ app.post('/upload-proveedores', upload.single('file'), (req, res) => {
   }
 });
 
-// ===========================================
-// 🔄 CARGA DE ENTREGAS DE FRUTA (ProFru.xlsx)
-// ===========================================
+// =================== FRUTA (ProFru.xlsx) ===================
 app.post('/upload-profru', upload.single('file'), (req, res) => {
   try {
     console.log("🔁 Recibiendo archivo profru...");
@@ -69,10 +70,9 @@ app.post('/upload-profru', upload.single('file'), (req, res) => {
       "pagado": String(row.pagado || "").toLowerCase().trim() === "si"
     }));
 
-    console.log("✅ Entregas procesadas:", entregas.length);
-
     fs.writeFileSync(path.join(__dirname, 'profru.json'), JSON.stringify(entregas, null, 2), 'utf8');
 
+    console.log("✅ profru.json actualizado con", entregas.length, "registros.");
     res.status(200).send({ message: "Archivo profru.json actualizado correctamente." });
   } catch (error) {
     console.error("❌ Error al procesar ProFru:", error.message);
@@ -80,6 +80,22 @@ app.post('/upload-profru', upload.single('file'), (req, res) => {
   }
 });
 
-app.listen(3001, () => {
-  console.log("✅ Servidor escuchando en http://localhost:3001");
+// =================== VER profru.json ===================
+app.get('/profru', (req, res) => {
+  try {
+    const jsonPath = path.join(__dirname, 'profru.json');
+    if (!fs.existsSync(jsonPath)) {
+      return res.status(404).send({ error: "El archivo profru.json no existe aún." });
+    }
+    const data = fs.readFileSync(jsonPath, 'utf8');
+    res.type('application/json').send(data);
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
+
+// =================== PORT DINÁMICO ===================
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`✅ Servidor escuchando en http://localhost:${PORT}`);
 });
