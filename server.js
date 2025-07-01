@@ -12,7 +12,7 @@ const upload = multer({ dest: 'uploads/' });
 
 // =================== RAÍZ ===================
 app.get("/", (req, res) => {
-  res.send("Servidor funcionando. Endpoints: /upload-proveedores, /upload-profru, /profru");
+  res.send("Servidor funcionando. Endpoints: /upload-proveedores, /upload-profru, /profru (autenticado)");
 });
 
 // =================== PROVEEDORES ===================
@@ -76,16 +76,43 @@ app.post('/upload-profru', upload.single('file'), (req, res) => {
   }
 });
 
-// =================== VER profru.json ===================
+// =================== VER profru.json (Autenticado) ===================
 app.get('/profru', (req, res) => {
   try {
-    const jsonPath = path.join(__dirname, 'profru.json');
-    if (!fs.existsSync(jsonPath)) {
-      return res.status(404).send({ error: "El archivo profru.json no existe aún." });
+    const auth = req.headers.authorization;
+    if (!auth || !auth.startsWith("Basic ")) {
+      return res.status(401).send({ error: "Falta autenticación básica." });
     }
-    const data = fs.readFileSync(jsonPath, 'utf8');
+
+    const base64 = auth.split(" ")[1];
+    const [usuario, password] = Buffer.from(base64, 'base64').toString().split(":");
+
+    const proveedoresPath = path.join(__dirname, 'proveedores.json');
+    if (!fs.existsSync(proveedoresPath)) {
+      return res.status(500).send({ error: "No existe proveedores.json" });
+    }
+
+    const proveedores = JSON.parse(fs.readFileSync(proveedoresPath, 'utf8'));
+
+    const autorizado = proveedores.find(p =>
+      p.nombre?.toLowerCase() === usuario.toLowerCase() &&
+      p.password === password
+    );
+
+    if (!autorizado) {
+      return res.status(401).send({ error: "Usuario o contraseña inválidos" });
+    }
+
+    const profruPath = path.join(__dirname, 'profru.json');
+    if (!fs.existsSync(profruPath)) {
+      return res.status(404).send({ error: "profru.json no existe" });
+    }
+
+    const data = fs.readFileSync(profruPath, 'utf8');
     res.type('application/json').send(data);
+
   } catch (error) {
+    console.error("❌ Error autenticando /profru:", error.message);
     res.status(500).send({ error: error.message });
   }
 });
