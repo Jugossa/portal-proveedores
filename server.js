@@ -7,16 +7,20 @@ const path = require('path');
 
 const app = express();
 app.use(cors());
-app.use(express.json()); // Para leer JSON del frontend
+app.use(express.json());
 
 const upload = multer({ dest: 'uploads/' });
 
-// =================== RAÍZ: muestra index.html ===================
+// ==========================================
+// Mostrar el formulario de login (index.html)
+// ==========================================
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-// =================== SUBIR proveedores.xlsx ===================
+// ==========================================
+// Subida y procesamiento de proveedores.xlsx
+// ==========================================
 app.post('/upload-proveedores', upload.single('file'), (req, res) => {
   try {
     const workbook = XLSX.readFile(req.file.path);
@@ -37,7 +41,9 @@ app.post('/upload-proveedores', upload.single('file'), (req, res) => {
   }
 });
 
-// =================== SUBIR ProFru.xlsx ===================
+// ==========================================
+// Subida y procesamiento de ProFru.xlsx
+// ==========================================
 app.post('/upload-profru', upload.single('file'), (req, res) => {
   try {
     const workbook = XLSX.readFile(req.file.path);
@@ -66,7 +72,9 @@ app.post('/upload-profru', upload.single('file'), (req, res) => {
   }
 });
 
-// =================== LOGIN: verifica cui/password y responde entregas filtradas ===================
+// ==========================================
+// Login: verifica cui y password
+// ==========================================
 app.post("/login", (req, res) => {
   const { cui, password } = req.body;
 
@@ -100,8 +108,10 @@ app.post("/login", (req, res) => {
   res.send(entregasFiltradas);
 });
 
-// =================== INICIAR SERVIDOR ===================
+// ==========================================
+// Iniciar servidor
+// ==========================================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`✅ Servidor iniciado en http://localhost:${PORT}`);
+  console.log(`✅ Servidor funcionando en http://localhost:${PORT}`);
 });
