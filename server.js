@@ -12,10 +12,10 @@ const upload = multer({ dest: 'uploads/' });
 
 // =================== RAÍZ ===================
 app.get("/", (req, res) => {
-  res.send("Servidor funcionando. Endpoints: /upload-proveedores, /upload-profru, /profru (autenticado)");
+  res.send("Servidor funcionando. Endpoints: /upload-proveedores, /upload-profru, /profru (requiere login)");
 });
 
-// =================== PROVEEDORES ===================
+// =================== SUBIR proveedores.xlsx ===================
 app.post('/upload-proveedores', upload.single('file'), (req, res) => {
   try {
     const filePath = req.file.path;
@@ -39,10 +39,10 @@ app.post('/upload-proveedores', upload.single('file'), (req, res) => {
   }
 });
 
-// =================== FRUTA (ProFru.xlsx) ===================
+// =================== SUBIR ProFru.xlsx ===================
 app.post('/upload-profru', upload.single('file'), (req, res) => {
   try {
-    console.log("🔁 Recibiendo archivo profru...");
+    console.log("🔁 Recibiendo archivo ProFru...");
     console.log("📦 Archivo recibido:", req.file?.originalname || "No llegó nada");
 
     const filePath = req.file.path;
@@ -76,7 +76,7 @@ app.post('/upload-profru', upload.single('file'), (req, res) => {
   }
 });
 
-// =================== VER profru.json (Autenticado) ===================
+// =================== GET /profru (Autenticado y Filtrado) ===================
 app.get('/profru', (req, res) => {
   try {
     const auth = req.headers.authorization;
@@ -85,7 +85,7 @@ app.get('/profru', (req, res) => {
     }
 
     const base64 = auth.split(" ")[1];
-    const [usuario, password] = Buffer.from(base64, 'base64').toString().split(":");
+    const [usuarioCui, password] = Buffer.from(base64, 'base64').toString().split(":");
 
     const proveedoresPath = path.join(__dirname, 'proveedores.json');
     if (!fs.existsSync(proveedoresPath)) {
@@ -95,7 +95,7 @@ app.get('/profru', (req, res) => {
     const proveedores = JSON.parse(fs.readFileSync(proveedoresPath, 'utf8'));
 
     const autorizado = proveedores.find(p =>
-      p.nombre?.toLowerCase() === usuario.toLowerCase() &&
+      String(p.cui).replace(/\D/g, '') === usuarioCui.replace(/\D/g, '') &&
       p.password === password
     );
 
@@ -108,16 +108,21 @@ app.get('/profru', (req, res) => {
       return res.status(404).send({ error: "profru.json no existe" });
     }
 
-    const data = fs.readFileSync(profruPath, 'utf8');
-    res.type('application/json').send(data);
+    const data = JSON.parse(fs.readFileSync(profruPath, 'utf8'));
+
+    const entregasDelProveedor = data.filter(entry =>
+      entry.ProveedorT?.toLowerCase() === autorizado.nombre.toLowerCase()
+    );
+
+    res.json(entregasDelProveedor);
 
   } catch (error) {
-    console.error("❌ Error autenticando /profru:", error.message);
+    console.error("❌ Error en /profru:", error.message);
     res.status(500).send({ error: error.message });
   }
 });
 
-// =================== PORT DINÁMICO ===================
+// =================== START SERVER ===================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✅ Servidor escuchando en http://localhost:${PORT}`);
