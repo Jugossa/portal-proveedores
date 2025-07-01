@@ -76,12 +76,13 @@ app.post('/upload-profru', upload.single('file'), (req, res) => {
   }
 });
 
-// =================== GET /profru (Autenticado y Filtrado) ===================
+// =================== GET /profru (Autenticado + Filtrado) ===================
 app.get('/profru', (req, res) => {
   try {
     const auth = req.headers.authorization;
     if (!auth || !auth.startsWith("Basic ")) {
-      return res.status(401).send({ error: "Falta autenticación básica." });
+      res.set('WWW-Authenticate', 'Basic realm="Acceso a Entregas"');
+      return res.status(401).send("Autenticación requerida");
     }
 
     const base64 = auth.split(" ")[1];
@@ -100,7 +101,8 @@ app.get('/profru', (req, res) => {
     );
 
     if (!autorizado) {
-      return res.status(401).send({ error: "Usuario o contraseña inválidos" });
+      res.set('WWW-Authenticate', 'Basic realm="Acceso a Entregas"');
+      return res.status(401).send("Usuario o contraseña inválidos");
     }
 
     const profruPath = path.join(__dirname, 'profru.json');
