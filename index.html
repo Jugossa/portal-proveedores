@@ -21,7 +21,7 @@
     #filtroEspecie { width: auto; min-width: 180px; }
     th[col-id="Nro Jugos"], th[col-id="Remito"], th[col-id="Origen"], th[col-id="NomVariedad"], th[col-id="Fecha"],
     td[col-id="Nro Jugos"], td[col-id="Remito"], td[col-id="Origen"], td[col-id="NomVariedad"], td[col-id="Fecha"] {
-      min-width: 160px;
+      min-width: 180px;
       white-space: nowrap;
     }
     #filtroFechas {
@@ -37,7 +37,7 @@
 <body>
   <div style="display: flex; justify-content: space-between; align-items: center;">
     <h2 style="margin: 0;">🔐 Ingreso de Proveedores</h2>
-    <img src="logo.jpg" alt="Logo Jugos SA" style="height: 60px;">
+    <img src="logo.jpg" alt="Logo Jugos SA" style="height: 60px; max-height: 60px; object-fit: contain;">
   </div>
 
   <div id="login">
@@ -63,8 +63,8 @@
 
     <div id="resumen"></div>
     <div id="acciones">
-      <button onclick="descargarExcel()">📅 Descargar Excel</button>
-      <button onclick="window.print()">📄 Descargar PDF</button>
+      <button onclick="descargarExcel()">📄 Descargar Excel</button>
+      <button onclick="window.print()">🔖 Descargar PDF</button>
     </div>
   </div>
 
@@ -79,12 +79,13 @@
       const dias = parseInt(excelNumber);
       if (isNaN(dias)) return excelNumber;
       const fecha = new Date(baseDate.getTime() + dias * 86400000);
-      return fecha.toISOString().split("T")[0];
+      return fecha.toLocaleDateString("es-AR");
     }
 
     function fechaDentroDeRango(fechaStr, desdeStr, hastaStr) {
       if (!desdeStr && !hastaStr) return true;
-      const fecha = new Date(fechaStr);
+      const [dia, mes, anio] = fechaStr.split("/");
+      const fecha = new Date(`${anio}-${mes}-${dia}`);
       const desde = desdeStr ? new Date(desdeStr) : null;
       const hasta = hastaStr ? new Date(hastaStr) : null;
       if (desde && fecha < desde) return false;
