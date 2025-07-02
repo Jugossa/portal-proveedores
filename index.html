@@ -18,17 +18,11 @@
       max-width: 200px;
       padding: 8px 12px;
     }
-    #bienvenida { margin: 20px 0; font-weight: bold; font-size: 16px; color: green; display: none; }
+    #bienvenida { margin: 20px 0 5px 0; font-size: 16px; color: green; font-weight: bold; display: none; }
+    #aviso { font-size: 12px; color: black; margin-bottom: 15px; display: none; }
     #filtroEspecie { width: auto; min-width: 180px; }
-
-    th[col-id="Nro Jugos"],
-    th[col-id="Remito"],
-    th[col-id="Origen"],
-    th[col-id="NomVariedad"],
-    td[col-id="Nro Jugos"],
-    td[col-id="Remito"],
-    td[col-id="Origen"],
-    td[col-id="NomVariedad"] {
+    th[col-id="Nro Jugos"], th[col-id="Remito"], th[col-id="Origen"], th[col-id="NomVariedad"],
+    td[col-id="Nro Jugos"], td[col-id="Remito"], td[col-id="Origen"], td[col-id="NomVariedad"] {
       min-width: 120px;
       white-space: nowrap;
     }
@@ -45,6 +39,7 @@
 
   <div id="error"></div>
   <div id="bienvenida"></div>
+  <div id="aviso">Cualquier consulta comunicarse con la administración de Jugos SA.</div>
 
   <div id="filtros" style="display:none;">
     <label for="filtroEspecie">Filtrar por especie:</label>
@@ -52,6 +47,7 @@
     <div id="resumen"></div>
     <div id="acciones">
       <button onclick="descargarExcel()">📥 Descargar Excel</button>
+      <button onclick="window.print()">📄 Descargar PDF</button>
     </div>
   </div>
 
@@ -76,11 +72,13 @@
       const tablaDiv = document.getElementById("tabla");
       const filtrosDiv = document.getElementById("filtros");
       const bienvenidaDiv = document.getElementById("bienvenida");
+      const avisoDiv = document.getElementById("aviso");
 
       errorDiv.textContent = "";
       tablaDiv.innerHTML = "";
       filtrosDiv.style.display = "none";
       bienvenidaDiv.style.display = "none";
+      avisoDiv.style.display = "none";
 
       if (!cui || !password) {
         errorDiv.textContent = "Por favor complete CUIT y contraseña.";
@@ -105,14 +103,16 @@
           return;
         }
 
-        entregasOriginal = data;
+        entregasOriginal = data.map(e => ({ ...e, Especie: (e.Especie || '').toUpperCase() }));
+
         document.getElementById("login").style.display = "none";
 
         const nombre = data[0].ProveedorT || "Proveedor";
-        bienvenidaDiv.innerHTML = `✅ Bienvenido <strong>${nombre}</strong>.<br>Cualquier consulta comunicarse con la administración de Jugos SA.`;
+        bienvenidaDiv.innerHTML = `✅ Bienvenido <strong>${nombre}</strong>`;
         bienvenidaDiv.style.display = "block";
+        avisoDiv.style.display = "block";
 
-        mostrarFiltrosYTabla(data);
+        mostrarFiltrosYTabla(entregasOriginal);
       } catch (err) {
         errorDiv.textContent = "❌ Error de red.";
         console.error(err);
