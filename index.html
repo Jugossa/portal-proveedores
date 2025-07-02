@@ -5,12 +5,12 @@
   <title>Portal Proveedores</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
-    body { font-family: sans-serif; margin: 40px 20px; max-width: none; }
+    body { font-family: sans-serif; max-width: 800px; margin: 40px auto; }
     input, button, select { padding: 10px; margin: 5px 5px 5px 0; }
     input[type="date"] { width: auto; }
     button { cursor: pointer; }
-    table { width: auto; border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; font-size: 14px; white-space: nowrap; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; font-size: 14px; }
     th { background: #f0f0f0; }
     #error { color: red; margin-top: 10px; }
     #resumen { font-weight: bold; margin: 10px 0; }
@@ -18,7 +18,12 @@
     #acciones button { width: auto; max-width: 200px; padding: 8px 12px; }
     #bienvenida { margin: 20px 0 5px 0; font-size: 16px; color: green; font-weight: bold; display: none; }
     #aviso { font-size: 12px; color: black; margin-bottom: 15px; display: none; font-weight: normal; }
-    #filtroEspecie { width: auto; }
+    #filtroEspecie { width: auto; min-width: 180px; }
+    th[col-id="Nro Jugos"], th[col-id="Remito"], th[col-id="Origen"], th[col-id="NomVariedad"], th[col-id="Fecha"], th[col-id="KgsD"],
+    td[col-id="Nro Jugos"], td[col-id="Remito"], td[col-id="Origen"], td[col-id="NomVariedad"], td[col-id="Fecha"], td[col-id="KgsD"] {
+      min-width: 180px;
+      white-space: nowrap;
+    }
     td[col-id="KgsD"] { text-align: right; }
     #filtroFechas {
       display: flex;
@@ -28,18 +33,12 @@
       flex-wrap: wrap;
     }
     #filtroFechas label { margin-right: 5px; }
-    img[alt="Logo Jugos SA"] {
-      max-height: 60px;
-      height: auto;
-      object-fit: contain;
-      display: block;
-    }
   </style>
 </head>
 <body>
   <div style="display: flex; justify-content: space-between; align-items: center;">
     <h2 style="margin: 0;">🔐 Ingreso de Proveedores</h2>
-    <img src="logo.jpg" alt="Logo Jugos SA">
+    <img src="logo.jpg" alt="Logo Jugos SA" style="height: 60px; max-height: 60px; object-fit: contain;">
   </div>
 
   <div id="login">
@@ -73,7 +72,163 @@
   <div id="tabla"></div>
 
   <script>
-    // Código JavaScript original intacto
+    let entregasOriginal = [];
+    let entregasFiltradas = [];
+
+    function convertirFecha(excelNumber) {
+      const baseDate = new Date(1899, 11, 30);
+      const dias = parseInt(excelNumber);
+      if (isNaN(dias)) return excelNumber;
+      const fecha = new Date(baseDate.getTime() + dias * 86400000);
+      return fecha.toLocaleDateString("es-AR", { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+
+    function fechaDentroDeRango(fechaStr, desdeStr, hastaStr) {
+      if (!desdeStr && !hastaStr) return true;
+      const [dia, mes, anio] = fechaStr.split("/");
+      const fecha = new Date(`${anio}-${mes}-${dia}`);
+      const desde = desdeStr ? new Date(desdeStr) : null;
+      const hasta = hastaStr ? new Date(hastaStr) : null;
+      if (desde && fecha < desde) return false;
+      if (hasta && fecha > hasta) return false;
+      return true;
+    }
+
+    async function login() {
+      const cui = document.getElementById("cui").value.trim();
+      const password = document.getElementById("password").value.trim();
+      const errorDiv = document.getElementById("error");
+      const tablaDiv = document.getElementById("tabla");
+      const filtrosDiv = document.getElementById("filtros");
+      const bienvenidaDiv = document.getElementById("bienvenida");
+      const avisoDiv = document.getElementById("aviso");
+
+      errorDiv.textContent = "";
+      tablaDiv.innerHTML = "";
+      filtrosDiv.style.display = "none";
+      bienvenidaDiv.style.display = "none";
+      avisoDiv.style.display = "none";
+
+      if (!cui || !password) {
+        errorDiv.textContent = "Por favor complete CUIT y contraseña.";
+        return;
+      }
+
+      try {
+        const res = await fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cui, password })
+        });
+
+        if (res.status === 401) {
+          errorDiv.textContent = "❌ CUIT o contraseña incorrectos.";
+          return;
+        }
+
+        const data = await res.json();
+        if (!data.length) {
+          tablaDiv.innerHTML = "<p>No hay entregas registradas.</p>";
+          return;
+        }
+
+        entregasOriginal = data.map(e => ({ ...e, Especie: (e.Especie || '').toUpperCase(), FechaStr: convertirFecha(e.Fecha) }));
+
+        document.getElementById("login").style.display = "none";
+
+        const nombre = data[0].ProveedorT || "Proveedor";
+        bienvenidaDiv.innerHTML = `✅ Bienvenido <strong>${nombre}</strong>`;
+        bienvenidaDiv.style.display = "block";
+        avisoDiv.style.display = "block";
+
+        mostrarFiltrosYTabla(entregasOriginal);
+      } catch (err) {
+        errorDiv.textContent = "❌ Error de red.";
+        console.error(err);
+      }
+    }
+
+    function mostrarFiltrosYTabla(data) {
+      const especies = [...new Set(data.map(e => e.Especie).filter(Boolean))];
+      const select = document.getElementById("filtroEspecie");
+
+      select.innerHTML = `<option value="TODAS">Todas las especies</option>`;
+      especies.forEach(v => {
+        select.innerHTML += `<option value="${v}">${v}</option>`;
+      });
+
+      document.getElementById("filtros").style.display = "block";
+      filtrarEspecie();
+    }
+
+    function filtrarEspecie() {
+      const especie = document.getElementById("filtroEspecie").value;
+      const desde = document.getElementById("desde").value;
+      const hasta = document.getElementById("hasta").value;
+
+      entregasFiltradas = entregasOriginal.filter(e => {
+        const coincideEspecie = especie === "TODAS" || e.Especie === especie;
+        const enRango = fechaDentroDeRango(e.FechaStr, desde, hasta);
+        return coincideEspecie && enRango;
+      });
+
+      renderTabla(entregasFiltradas);
+    }
+
+    function renderTabla(data) {
+      const tablaDiv = document.getElementById("tabla");
+      const resumenDiv = document.getElementById("resumen");
+
+      if (!data.length) {
+        tablaDiv.innerHTML = "<p>No hay datos.</p>";
+        resumenDiv.textContent = "";
+        return;
+      }
+
+      const totalKgs = data.reduce((sum, row) => sum + Number(row.KgsD || 0), 0);
+      resumenDiv.textContent = `Total kilos entregados: ${totalKgs.toLocaleString("es-AR")} kg`;
+
+      const columnasOcultas = ["pagado", "ProveedorT"];
+      const encabezados = Object.keys(data[0]).filter(k => !columnasOcultas.includes(k) && k !== "FechaStr");
+
+      let html = "<table><thead><tr>";
+      encabezados.forEach(k => html += `<th col-id="${k}">${k}</th>`);
+      html += "</tr></thead><tbody>";
+
+      data.forEach(row => {
+        html += "<tr>";
+        encabezados.forEach(k => {
+          let val = row[k];
+          if (k === "Fecha") val = convertirFecha(val);
+          if (k === "KgsD") val = Number(val).toLocaleString("es-AR");
+          html += `<td col-id="${k}">${val}</td>`;
+        });
+        html += "</tr>";
+      });
+
+      html += "</tbody></table>";
+      tablaDiv.innerHTML = html;
+    }
+
+    function descargarExcel() {
+      const columnasOcultas = ["pagado", "ProveedorT"];
+      const datosExportar = entregasFiltradas.map(row => {
+        const fila = {};
+        for (let key in row) {
+          if (!columnasOcultas.includes(key) && key !== "FechaStr") {
+            let val = row[key];
+            if (key === "Fecha") val = convertirFecha(val);
+            fila[key] = val;
+          }
+        }
+        return fila;
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(datosExportar);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Entregas");
+      XLSX.writeFile(workbook, "entregas.xlsx");
+    }
   </script>
 </body>
 </html>
