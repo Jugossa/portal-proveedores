@@ -6,13 +6,15 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     body { font-family: sans-serif; max-width: 800px; margin: 40px auto; }
-    input, button, select { padding: 10px; margin: 5px 0; width: 100%; }
+    input, button, select { padding: 10px; margin: 5px 0; }
+    input[type="date"] { width: auto; }
+    button { cursor: pointer; }
     table { width: 100%; border-collapse: collapse; margin-top: 20px; }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: left; font-size: 14px; }
     th { background: #f0f0f0; }
     #error { color: red; margin-top: 10px; }
     #resumen { font-weight: bold; margin: 10px 0; }
-    #acciones { margin-top: 10px; display: flex; gap: 10px; }
+    #acciones { margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; }
     #acciones button {
       width: auto;
       max-width: 200px;
@@ -23,8 +25,18 @@
     #filtroEspecie { width: auto; min-width: 180px; }
     th[col-id="Nro Jugos"], th[col-id="Remito"], th[col-id="Origen"], th[col-id="NomVariedad"],
     td[col-id="Nro Jugos"], td[col-id="Remito"], td[col-id="Origen"], td[col-id="NomVariedad"] {
-      min-width: 120px;
+      min-width: 140px;
       white-space: nowrap;
+    }
+    #filtroFechas {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    #filtroFechas label {
+      margin-right: 5px;
     }
   </style>
 </head>
@@ -47,6 +59,14 @@
   <div id="filtros" style="display:none;">
     <label for="filtroEspecie">Filtrar por especie:</label>
     <select id="filtroEspecie" onchange="filtrarEspecie()"></select>
+
+    <div id="filtroFechas">
+      <label for="desde">Desde:</label>
+      <input type="date" id="desde" onchange="filtrarEspecie()">
+      <label for="hasta">Hasta:</label>
+      <input type="date" id="hasta" onchange="filtrarEspecie()">
+    </div>
+
     <div id="resumen"></div>
     <div id="acciones">
       <button onclick="descargarExcel()">📥 Descargar Excel</button>
@@ -65,7 +85,17 @@
       const dias = parseInt(excelNumber);
       if (isNaN(dias)) return excelNumber;
       const fecha = new Date(baseDate.getTime() + dias * 86400000);
-      return fecha.toLocaleDateString("es-AR");
+      return fecha.toISOString().split("T")[0];
+    }
+
+    function fechaDentroDeRango(fechaStr, desdeStr, hastaStr) {
+      if (!desdeStr && !hastaStr) return true;
+      const fecha = new Date(fechaStr);
+      const desde = desdeStr ? new Date(desdeStr) : null;
+      const hasta = hastaStr ? new Date(hastaStr) : null;
+      if (desde && fecha < desde) return false;
+      if (hasta && fecha > hasta) return false;
+      return true;
     }
 
     async function login() {
@@ -106,7 +136,7 @@
           return;
         }
 
-        entregasOriginal = data.map(e => ({ ...e, Especie: (e.Especie || '').toUpperCase() }));
+        entregasOriginal = data.map(e => ({ ...e, Especie: (e.Especie || '').toUpperCase(), FechaStr: convertirFecha(e.Fecha) }));
 
         document.getElementById("login").style.display = "none";
 
@@ -137,9 +167,15 @@
 
     function filtrarEspecie() {
       const especie = document.getElementById("filtroEspecie").value;
-      entregasFiltradas = especie === "TODAS"
-        ? entregasOriginal
-        : entregasOriginal.filter(e => e.Especie === especie);
+      const desde = document.getElementById("desde").value;
+      const hasta = document.getElementById("hasta").value;
+
+      entregasFiltradas = entregasOriginal.filter(e => {
+        const coincideEspecie = especie === "TODAS" || e.Especie === especie;
+        const enRango = fechaDentroDeRango(e.FechaStr, desde, hasta);
+        return coincideEspecie && enRango;
+      });
+
       renderTabla(entregasFiltradas);
     }
 
@@ -157,7 +193,7 @@
       resumenDiv.textContent = `Total kilos entregados: ${totalKgs.toLocaleString("es-AR")} kg`;
 
       const columnasOcultas = ["pagado", "ProveedorT"];
-      const encabezados = Object.keys(data[0]).filter(k => !columnasOcultas.includes(k));
+      const encabezados = Object.keys(data[0]).filter(k => !columnasOcultas.includes(k) && k !== "FechaStr");
 
       let html = "<table><thead><tr>";
       encabezados.forEach(k => html += `<th col-id="${k}">${k}</th>`);
@@ -183,7 +219,7 @@
       const datosExportar = entregasFiltradas.map(row => {
         const fila = {};
         for (let key in row) {
-          if (!columnasOcultas.includes(key)) {
+          if (!columnasOcultas.includes(key) && key !== "FechaStr") {
             let val = row[key];
             if (key === "Fecha") val = convertirFecha(val);
             fila[key] = val;
