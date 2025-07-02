@@ -13,8 +13,25 @@
     #error { color: red; margin-top: 10px; }
     #resumen { font-weight: bold; margin: 10px 0; }
     #acciones { margin-top: 10px; display: flex; gap: 10px; }
-    #acciones button { width: auto; flex: 1; }
+    #acciones button {
+      width: auto;
+      max-width: 200px;
+      padding: 8px 12px;
+    }
     #bienvenida { margin: 20px 0; font-weight: bold; font-size: 16px; color: green; display: none; }
+    #filtroEspecie { width: auto; min-width: 180px; }
+
+    th[col-id="Nro Jugos"],
+    th[col-id="Remito"],
+    th[col-id="Origen"],
+    th[col-id="NomVariedad"],
+    td[col-id="Nro Jugos"],
+    td[col-id="Remito"],
+    td[col-id="Origen"],
+    td[col-id="NomVariedad"] {
+      min-width: 120px;
+      white-space: nowrap;
+    }
   </style>
 </head>
 <body>
@@ -89,11 +106,8 @@
         }
 
         entregasOriginal = data;
-
-        // Ocultar login
         document.getElementById("login").style.display = "none";
 
-        // Mostrar bienvenida con nombre del proveedor
         const nombre = data[0].ProveedorT || "Proveedor";
         bienvenidaDiv.innerHTML = `✅ Bienvenido <strong>${nombre}</strong>.<br>Cualquier consulta comunicarse con la administración de Jugos SA.`;
         bienvenidaDiv.style.display = "block";
@@ -143,7 +157,7 @@
       const encabezados = Object.keys(data[0]).filter(k => !columnasOcultas.includes(k));
 
       let html = "<table><thead><tr>";
-      encabezados.forEach(k => html += `<th>${k}</th>`);
+      encabezados.forEach(k => html += `<th col-id="${k}">${k}</th>`);
       html += "</tr></thead><tbody>";
 
       data.forEach(row => {
@@ -152,7 +166,7 @@
           let val = row[k];
           if (k === "Fecha") val = convertirFecha(val);
           if (k === "KgsD") val = Number(val).toLocaleString("es-AR");
-          html += `<td>${val}</td>`;
+          html += `<td col-id="${k}">${val}</td>`;
         });
         html += "</tr>";
       });
