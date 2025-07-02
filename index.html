@@ -1,146 +1,184 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <title>Ingreso de Proveedores</title>
+  <meta charset="UTF-8">
+  <title>Portal Proveedores</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-    }
-    #login-form, #resultados {
-      max-width: 700px;
-      margin: auto;
-    }
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      margin-top: 20px;
-    }
-    th, td {
-      border: 1px solid #ccc;
-      padding: 6px;
-      text-align: left;
-    }
-    th {
-      background-color: #f2f2f2;
-    }
-    #filtros {
-      margin-top: 10px;
-    }
+    body { font-family: sans-serif; max-width: 800px; margin: 40px auto; }
+    input, button, select { padding: 10px; margin: 5px 0; width: 100%; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; font-size: 14px; }
+    th { background: #f0f0f0; }
+    #error { color: red; margin-top: 10px; }
+    #resumen { font-weight: bold; margin: 10px 0; }
+    #acciones { margin-top: 10px; display: flex; gap: 10px; }
+    #acciones button { width: auto; flex: 1; }
+    #bienvenida { margin: 20px 0; font-weight: bold; font-size: 16px; color: green; display: none; }
   </style>
 </head>
 <body>
+  <h2>🔐 Ingreso de Proveedores</h2>
 
-  <div id="login-form">
-    <h2>🔐 Ingreso de Proveedores</h2>
-    <input type="text" id="cui" placeholder="CUIT/CUIL" style="width: 100%; padding: 8px;"><br><br>
-    <input type="password" id="password" placeholder="Contraseña" style="width: 100%; padding: 8px;"><br><br>
+  <div id="login">
+    <input type="text" id="cui" placeholder="CUIT / CUIL" />
+    <input type="password" id="password" placeholder="Contraseña" />
     <button onclick="login()">Ingresar</button>
-    <p id="error" style="color:red;"></p>
   </div>
 
-  <div id="resultados" style="display:none;">
-    <h2>📄 Entregas registradas</h2>
-    <div id="filtros">
-      <label>Filtrar por especie: 
-        <select id="filtro-especie" onchange="filtrar()">
-          <option value="">(Todas)</option>
-        </select>
-      </label>
-      <p><strong>Total KgsD:</strong> <span id="total-kgs">0</span></p>
+  <div id="error"></div>
+  <div id="bienvenida"></div>
+
+  <div id="filtros" style="display:none;">
+    <label for="filtroEspecie">Filtrar por especie:</label>
+    <select id="filtroEspecie" onchange="filtrarEspecie()"></select>
+    <div id="resumen"></div>
+    <div id="acciones">
+      <button onclick="descargarExcel()">📥 Descargar Excel</button>
     </div>
-    <table id="tabla">
-      <thead>
-        <tr>
-          <th>Nro Jugos</th>
-          <th>Fecha</th>
-          <th>Remito</th>
-          <th>CantBins</th>
-          <th>Origen</th>
-          <th>Especie</th>
-          <th>NomVariedad</th>
-          <th>KgsD</th>
-          <th>Certificado</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
   </div>
+
+  <div id="tabla"></div>
 
   <script>
-    let entregas = [];
+    let entregasOriginal = [];
+    let entregasFiltradas = [];
 
-    function login() {
+    function convertirFecha(excelNumber) {
+      const baseDate = new Date(1899, 11, 30);
+      const dias = parseInt(excelNumber);
+      if (isNaN(dias)) return excelNumber;
+      const fecha = new Date(baseDate.getTime() + dias * 86400000);
+      return fecha.toLocaleDateString("es-AR");
+    }
+
+    async function login() {
       const cui = document.getElementById("cui").value.trim();
       const password = document.getElementById("password").value.trim();
+      const errorDiv = document.getElementById("error");
+      const tablaDiv = document.getElementById("tabla");
+      const filtrosDiv = document.getElementById("filtros");
+      const bienvenidaDiv = document.getElementById("bienvenida");
 
-      fetch("/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cui, password })
-      })
-      .then(res => {
-        if (!res.ok) throw new Error("Login fallido");
-        return res.json();
-      })
-      .then(data => {
-        document.getElementById("login-form").style.display = "none";
-        document.getElementById("resultados").style.display = "block";
-        entregas = data;
-        mostrarTabla(entregas);
-        cargarFiltroEspecie(entregas);
-      })
-      .catch(err => {
-        document.getElementById("error").innerText = "Usuario o contraseña inválidos.";
-      });
+      errorDiv.textContent = "";
+      tablaDiv.innerHTML = "";
+      filtrosDiv.style.display = "none";
+      bienvenidaDiv.style.display = "none";
+
+      if (!cui || !password) {
+        errorDiv.textContent = "Por favor complete CUIT y contraseña.";
+        return;
+      }
+
+      try {
+        const res = await fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cui, password })
+        });
+
+        if (res.status === 401) {
+          errorDiv.textContent = "❌ CUIT o contraseña incorrectos.";
+          return;
+        }
+
+        const data = await res.json();
+        if (!data.length) {
+          tablaDiv.innerHTML = "<p>No hay entregas registradas.</p>";
+          return;
+        }
+
+        entregasOriginal = data;
+
+        // Ocultar login
+        document.getElementById("login").style.display = "none";
+
+        // Mostrar bienvenida con nombre del proveedor
+        const nombre = data[0].ProveedorT || "Proveedor";
+        bienvenidaDiv.innerHTML = `✅ Bienvenido <strong>${nombre}</strong>.<br>Cualquier consulta comunicarse con la administración de Jugos SA.`;
+        bienvenidaDiv.style.display = "block";
+
+        mostrarFiltrosYTabla(data);
+      } catch (err) {
+        errorDiv.textContent = "❌ Error de red.";
+        console.error(err);
+      }
     }
 
-    function mostrarTabla(data) {
-      const tbody = document.querySelector("#tabla tbody");
-      tbody.innerHTML = "";
-      let total = 0;
+    function mostrarFiltrosYTabla(data) {
+      const especies = [...new Set(data.map(e => e.Especie).filter(Boolean))];
+      const select = document.getElementById("filtroEspecie");
+
+      select.innerHTML = `<option value="TODAS">Todas las especies</option>`;
+      especies.forEach(v => {
+        select.innerHTML += `<option value="${v}">${v}</option>`;
+      });
+
+      document.getElementById("filtros").style.display = "block";
+      filtrarEspecie();
+    }
+
+    function filtrarEspecie() {
+      const especie = document.getElementById("filtroEspecie").value;
+      entregasFiltradas = especie === "TODAS"
+        ? entregasOriginal
+        : entregasOriginal.filter(e => e.Especie === especie);
+      renderTabla(entregasFiltradas);
+    }
+
+    function renderTabla(data) {
+      const tablaDiv = document.getElementById("tabla");
+      const resumenDiv = document.getElementById("resumen");
+
+      if (!data.length) {
+        tablaDiv.innerHTML = "<p>No hay datos.</p>";
+        resumenDiv.textContent = "";
+        return;
+      }
+
+      const totalKgs = data.reduce((sum, row) => sum + Number(row.KgsD || 0), 0);
+      resumenDiv.textContent = `Total kilos entregados: ${totalKgs.toLocaleString("es-AR")} kg`;
+
+      const columnasOcultas = ["pagado", "ProveedorT"];
+      const encabezados = Object.keys(data[0]).filter(k => !columnasOcultas.includes(k));
+
+      let html = "<table><thead><tr>";
+      encabezados.forEach(k => html += `<th>${k}</th>`);
+      html += "</tr></thead><tbody>";
 
       data.forEach(row => {
-        const tr = document.createElement("tr");
-
-        const fechaExcel = parseFloat(row.Fecha);
-        const fechaObj = new Date((fechaExcel - 25569) * 86400 * 1000);
-        const fechaStr = fechaObj.toLocaleDateString("es-AR");
-
-        tr.innerHTML = `
-          <td>${row["Nro Jugos"]}</td>
-          <td>${fechaStr}</td>
-          <td>${row.Remito}</td>
-          <td>${row.CantBins}</td>
-          <td>${row.Origen}</td>
-          <td>${row.Especie}</td>
-          <td>${row.NomVariedad}</td>
-          <td>${row.KgsD.toLocaleString()}</td>
-          <td>${row.Certificado}</td>
-        `;
-        total += row.KgsD || 0;
-        tbody.appendChild(tr);
+        html += "<tr>";
+        encabezados.forEach(k => {
+          let val = row[k];
+          if (k === "Fecha") val = convertirFecha(val);
+          if (k === "KgsD") val = Number(val).toLocaleString("es-AR");
+          html += `<td>${val}</td>`;
+        });
+        html += "</tr>";
       });
 
-      document.getElementById("total-kgs").innerText = total.toLocaleString();
+      html += "</tbody></table>";
+      tablaDiv.innerHTML = html;
     }
 
-    function cargarFiltroEspecie(data) {
-      const select = document.getElementById("filtro-especie");
-      const especies = [...new Set(data.map(e => e.Especie))];
-      especies.sort().forEach(e => {
-        const option = document.createElement("option");
-        option.value = e;
-        option.text = e;
-        select.appendChild(option);
+    function descargarExcel() {
+      const columnasOcultas = ["pagado", "ProveedorT"];
+      const datosExportar = entregasFiltradas.map(row => {
+        const fila = {};
+        for (let key in row) {
+          if (!columnasOcultas.includes(key)) {
+            let val = row[key];
+            if (key === "Fecha") val = convertirFecha(val);
+            fila[key] = val;
+          }
+        }
+        return fila;
       });
-    }
 
-    function filtrar() {
-      const valor = document.getElementById("filtro-especie").value;
-      const filtrados = valor ? entregas.filter(e => e.Especie === valor) : entregas;
-      mostrarTabla(filtrados);
+      const worksheet = XLSX.utils.json_to_sheet(datosExportar);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Entregas");
+      XLSX.writeFile(workbook, "entregas.xlsx");
     }
   </script>
 </body>
