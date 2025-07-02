@@ -6,7 +6,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     body { font-family: sans-serif; max-width: 800px; margin: 40px auto; }
-    input, button, select { padding: 10px; margin: 5px 0; }
+    input, button, select { padding: 10px; margin: 5px 5px 5px 0; }
     input[type="date"] { width: auto; }
     button { cursor: pointer; }
     table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -15,17 +15,13 @@
     #error { color: red; margin-top: 10px; }
     #resumen { font-weight: bold; margin: 10px 0; }
     #acciones { margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; }
-    #acciones button {
-      width: auto;
-      max-width: 200px;
-      padding: 8px 12px;
-    }
+    #acciones button { width: auto; max-width: 200px; padding: 8px 12px; }
     #bienvenida { margin: 20px 0 5px 0; font-size: 16px; color: green; font-weight: bold; display: none; }
-    #aviso { font-size: 12px; color: black; margin-bottom: 15px; display: none; }
+    #aviso { font-size: 12px; color: black; margin-bottom: 15px; display: none; font-weight: normal; }
     #filtroEspecie { width: auto; min-width: 180px; }
-    th[col-id="Nro Jugos"], th[col-id="Remito"], th[col-id="Origen"], th[col-id="NomVariedad"],
-    td[col-id="Nro Jugos"], td[col-id="Remito"], td[col-id="Origen"], td[col-id="NomVariedad"] {
-      min-width: 140px;
+    th[col-id="Nro Jugos"], th[col-id="Remito"], th[col-id="Origen"], th[col-id="NomVariedad"], th[col-id="Fecha"],
+    td[col-id="Nro Jugos"], td[col-id="Remito"], td[col-id="Origen"], td[col-id="NomVariedad"], td[col-id="Fecha"] {
+      min-width: 160px;
       white-space: nowrap;
     }
     #filtroFechas {
@@ -35,15 +31,13 @@
       margin-top: 10px;
       flex-wrap: wrap;
     }
-    #filtroFechas label {
-      margin-right: 5px;
-    }
+    #filtroFechas label { margin-right: 5px; }
   </style>
 </head>
 <body>
-  <div style="display: flex; align-items: center; gap: 15px;">
-    <img src="logo.jpg" alt="Logo Jugos SA" style="height: 60px;">
+  <div style="display: flex; justify-content: space-between; align-items: center;">
     <h2 style="margin: 0;">🔐 Ingreso de Proveedores</h2>
+    <img src="logo.jpg" alt="Logo Jugos SA" style="height: 60px;">
   </div>
 
   <div id="login">
@@ -57,19 +51,19 @@
   <div id="aviso">Cualquier consulta comunicarse con la administración de Jugos SA.</div>
 
   <div id="filtros" style="display:none;">
-    <label for="filtroEspecie">Filtrar por especie:</label>
-    <select id="filtroEspecie" onchange="filtrarEspecie()"></select>
-
-    <div id="filtroFechas">
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+      <label for="filtroEspecie">Especie:</label>
+      <select id="filtroEspecie"></select>
       <label for="desde">Desde:</label>
-      <input type="date" id="desde" onchange="filtrarEspecie()">
+      <input type="date" id="desde">
       <label for="hasta">Hasta:</label>
-      <input type="date" id="hasta" onchange="filtrarEspecie()">
+      <input type="date" id="hasta">
+      <button onclick="filtrarEspecie()">Ver</button>
     </div>
 
     <div id="resumen"></div>
     <div id="acciones">
-      <button onclick="descargarExcel()">📥 Descargar Excel</button>
+      <button onclick="descargarExcel()">📅 Descargar Excel</button>
       <button onclick="window.print()">📄 Descargar PDF</button>
     </div>
   </div>
