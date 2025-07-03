@@ -19,7 +19,10 @@
     #bienvenida { margin: 20px 0 5px 0; font-size: 16px; color: green; font-weight: bold; display: none; }
     #aviso { font-size: 12px; color: black; margin-bottom: 15px; display: none; font-weight: normal; }
     #filtroEspecie { width: auto; }
-    td[col-id="KgsD"] { text-align: right; }
+    td[col-id="KgsD"],td[col-id="CantBins"] {
+  text-align: right;
+}
+
     #filtroFechas {
       display: flex;
       gap: 10px;
@@ -39,7 +42,7 @@
 <body>
   <div style="display: flex; justify-content: space-between; align-items: center;">
     <h2 style="margin: 0;">🔐 Ingreso de Proveedores</h2>
-    <img src="logo.jpg" alt="Logo Jugos SA">
+    <img src="/logo.jpg" alt="Logo Jugos SA">
   </div>
 
   <div id="login">
