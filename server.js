@@ -14,6 +14,7 @@ const upload = multer({ dest: 'uploads/' });
 // ==========================================
 // Mostrar el formulario de login (index.html)
 // ==========================================
+app.use(express.static(__dirname));
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
