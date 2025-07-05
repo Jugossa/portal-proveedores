@@ -34,19 +34,23 @@
 </head>
 <body>
 
-  <div style="display: flex; justify-content: space-between; align-items: center;">
-    <h2 style="margin: 0;">🔐 Ingreso de Proveedores</h2>
-    <div style="font-size: 20px; font-weight: bold; color: black;">
-      JUGOS SA.
-    </div>
+<!-- Título e Identificación -->
+<div style="display: flex; justify-content: space-between; align-items: center;" id="titulo">
+  <h2 style="margin: 0;">🔐 Ingreso de Proveedores</h2>
+  <div style="font-size: 20px; font-weight: bold; color: black;">
+    JUGOS SA.
   </div>
+</div>
 
- <div id="login" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+<!-- Login -->
+<div id="login" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
   <input type="text" id="cui" placeholder="CUIT / CUIL" style="width: 150px;" />
   <input type="password" id="password" placeholder="Contraseña" style="width: 150px;" />
   <button onclick="login()">Ingresar</button>
 </div>
-<div style="font-size: 12px; color: #444; margin: 4px 0 15px 0;">
+
+<!-- Aviso CUIT -->
+<div id="avisoCuit" style="font-size: 12px; color: #444; margin: 4px 0 15px 0;">
   * El CUIT puede ingresarse con o sin guiones.
 </div>
 
