@@ -4,3 +4,5 @@ uploads/
 *.json
 *.log
 .DS_Store
+actualizar-todo.bat
+

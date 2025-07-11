@@ -9,6 +9,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ✅ Servir archivos estáticos desde /public (incluye img/logo.png)
+app.use(express.static(path.join(__dirname, 'public')));
+
 const upload = multer({ dest: 'uploads/' });
 
 // ✅ Función para convertir fecha de Excel a formato legible
