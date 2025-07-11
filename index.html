@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Portal Proveedores</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 40px 20px; max-width: none; }
+    input, button, select { padding: 10px; margin: 5px 5px 5px 0; }
+    input[type="date"] { width: auto; }
+    button { cursor: pointer; }
+    table { width: auto; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; font-size: 14px; white-space: nowrap; }
+    th { background: #f0f0f0; }
+    #error { color: red; margin-top: 10px; }
+    #resumen { font-weight: bold; margin: 10px 0; }
+    #acciones { margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; }
+    #acciones button { width: auto; max-width: 200px; padding: 8px 12px; }
+    #last-update { font-size: 12px; color: #444; text-align: right; width: 100%; margin-top: 5px; }
+    #bienvenida { margin: 20px 0 5px 0; font-size: 16px; color: green; font-weight: bold; display: none; }
+    #aviso { font-size: 12px; color: black; margin-bottom: 15px; display: none; font-weight: normal; }
+    #filtroEspecie { width: auto; }
+    td[col-id="KgsD"],td[col-id="CantBins"] {
+      text-align: right;
+    }
+    #filtroFechas {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    #filtroFechas label { margin-right: 5px; }
+  </style>
+</head>
+<body>
+
+  <!-- Logo y título centrados -->
+  <div id="titulo" style="text-align: center; margin-bottom: 10px;">
+    <img src="img/logo.png" alt="Logo Jugos SA" style="height: 60px;" />
+    <h2 style="margin: 10px 0;">🔐 Ingreso de Proveedores</h2>
+  </div>
+
+  <!-- Login -->
+  <div id="login" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+    <input type="text" id="cui" placeholder="CUIT / CUIL" style="width: 150px;" />
+    <input type="password" id="password" placeholder="Contraseña" style="width: 150px;" />
+    <button onclick="login()">Ingresar</button>
+  </div>
+
+  <!-- Aviso CUIT -->
+  <div id="avisoCuit" style="font-size: 12px; color: #444; margin: 4px 0 5px 0;">
+    * El CUIT puede ingresarse con o sin guiones.
+  </div>
+
+  <div id="error"></div>
+  <div id="bienvenida"></div>
+  <div id="aviso">Cualquier consulta comunicarse con la administración de Jugos SA.</div>
+
+  <div id="filtros" style="display:none;">
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+      <label for="filtroEspecie">Especie:</label>
+      <select id="filtroEspecie"></select>
+      <label for="desde">Desde:</label>
+      <input type="date" id="desde">
+      <label for="hasta">Hasta:</label>
+      <input type="date" id="hasta">
+      <button onclick="filtrarEspecie()">Ver</button>
+    </div>
+
+    <div id="resumen"></div>
+
+    <div id="acciones">
+      <button onclick="descargarExcel()">📄 Descargar Excel</button> 
+      <button onclick="window.print()">📅 Descargar PDF</button>
+    </div>
+      <div id="last-update" style="font-size: 12px; color: #444; margin-top: 8px; text-align: left;"></div>
+  	
+    <!-- Fecha de última actualización debajo de los botones -->
+    <div id="last-update"></div>
+
+  </div>
+
+  <div id="tabla"></div>
+
+  <script>
+    let entregasOriginal = [];
+    let entregasFiltradas = [];
+
+    function convertirFecha(excelNumber) {
+      const baseDate = new Date(1899, 11, 30);
+      const dias = parseInt(excelNumber);
+      if (isNaN(dias)) return excelNumber;
+      const fecha = new Date(baseDate.getTime() + dias * 86400000);
+      return fecha.toLocaleDateString("es-AR", { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+
+    function fechaDentroDeRango(fechaStr, desdeStr, hastaStr) {
+      if (!desdeStr && !hastaStr) return true;
+      const [dia, mes, anio] = fechaStr.split("/");
+      const fecha = new Date(`${anio}-${mes}-${dia}`);
+      const desde = desdeStr ? new Date(desdeStr) : null;
+      const hasta = hastaStr ? new Date(hastaStr) : null;
+      if (desde && fecha < desde) return false;
+      if (hasta && fecha > hasta) return false;
+      return true;
+    }
+
+    async function login() {
+      const cui = document.getElementById("cui").value.trim();
+      const password = document.getElementById("password").value.trim();
+      const errorDiv = document.getElementById("error");
+      const tablaDiv = document.getElementById("tabla");
+      const filtrosDiv = document.getElementById("filtros");
+      const bienvenidaDiv = document.getElementById("bienvenida");
+      const avisoDiv = document.getElementById("aviso");
+
+      errorDiv.textContent = "";
+      tablaDiv.innerHTML = "";
+      filtrosDiv.style.display = "none";
+      bienvenidaDiv.style.display = "none";
+      avisoDiv.style.display = "none";
+
+      if (!cui || !password) {
+        errorDiv.textContent = "Por favor complete CUIT y contraseña.";
+        return;
+      }
+
+      try {
+        const res = await fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cui, password })
+        });
+
+        if (res.status === 401) {
+          errorDiv.textContent = "❌ CUIT o contraseña incorrectos.";
+          return;
+        }
+
+        const data = await res.json();
+        if (!data.length) {
+          tablaDiv.innerHTML = "<p>No hay entregas registradas.</p>";
+          return;
+        }
+
+        entregasOriginal = data.map(e => ({ ...e, Especie: (e.Especie || '').toUpperCase(), FechaStr: convertirFecha(e.Fecha) }));
+
+        document.getElementById("login").style.display = "none";
+
+        const nombre = data[0].ProveedorT || "Proveedor";
+        bienvenidaDiv.innerHTML = `✅ Bienvenido <strong>${nombre}</strong>`;
+        bienvenidaDiv.style.display = "block";
+        avisoDiv.style.display = "block";
+
+        // NO ocultar el logo/título
+        document.getElementById("avisoCuit").style.display = "none";
+
+        mostrarFiltrosYTabla(entregasOriginal);
+      } catch (err) {
+        errorDiv.textContent = "❌ Error de red.";
+        console.error(err);
+      }
+    }
+
+    function mostrarFiltrosYTabla(data) {
+      const especies = [...new Set(data.map(e => e.Especie).filter(Boolean))];
+      const select = document.getElementById("filtroEspecie");
+
+      select.innerHTML = `<option value="TODAS">Todas las especies</option>`;
+      especies.forEach(v => {
+        select.innerHTML += `<option value="${v}">${v}</option>`;
+      });
+
+      document.getElementById("filtros").style.display = "block";
+      filtrarEspecie();
+    }
+
+    function filtrarEspecie() {
+      const especie = document.getElementById("filtroEspecie").value;
+      const desde = document.getElementById("desde").value;
+      const hasta = document.getElementById("hasta").value;
+
+      entregasFiltradas = entregasOriginal.filter(e => {
+        const coincideEspecie = especie === "TODAS" || e.Especie === especie;
+        const enRango = fechaDentroDeRango(e.FechaStr, desde, hasta);
+        return coincideEspecie && enRango;
+      });
+
+      renderTabla(entregasFiltradas);
+    }
+
+    function renderTabla(data) {
+      const tablaDiv = document.getElementById("tabla");
+      const resumenDiv = document.getElementById("resumen");
+
+      if (!data.length) {
+        tablaDiv.innerHTML = "<p>No hay datos.</p>";
+        resumenDiv.textContent = "";
+        return;
+      }
+
+      const totalKgs = data.reduce((sum, row) => sum + Number(row.KgsD || 0), 0);
+      resumenDiv.textContent = `Total kilos entregados: ${totalKgs.toLocaleString("es-AR")} kg`;
+
+      const columnasOcultas = ["pagado", "ProveedorT"];
+      const encabezados = Object.keys(data[0]).filter(k => !columnasOcultas.includes(k) && k !== "FechaStr");
+
+      let html = "<table><thead><tr>";
+      encabezados.forEach(k => html += `<th col-id="${k}">${k}</th>`);
+      html += "</tr></thead><tbody>";
+
+      data.forEach(row => {
+        html += "<tr>";
+        encabezados.forEach(k => {
+          let val = row[k];
+          if (k === "Fecha") val = convertirFecha(val);
+          if (k === "KgsD") val = Number(val).toLocaleString("es-AR");
+          html += `<td col-id="${k}">${val}</td>`;
+        });
+        html += "</tr>";
+      });
+
+      html += "</tbody></table>";
+      tablaDiv.innerHTML = html;
+    }
+
+    function descargarExcel() {
+      const columnasOcultas = ["pagado", "ProveedorT"];
+      const datosExportar = entregasFiltradas.map(row => {
+        const fila = {};
+        for (let key in row) {
+          if (!columnasOcultas.includes(key) && key !== "FechaStr") {
+            let val = row[key];
+            if (key === "Fecha") val = convertirFecha(val);
+            fila[key] = val;
+          }
+        }
+        return fila;
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(datosExportar);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Entregas");
+      XLSX.writeFile(workbook, "entregas.xlsx");
+    }
+
+    // Mostrar última actualización al cargar
+    window.addEventListener("DOMContentLoaded", () => {
+      fetch('/lastUpdate.json')
+        .then(res => res.json())
+        .then(data => {
+          document.getElementById("last-update").innerText = data.lastUpdate;
+        })
+        .catch(() => {
+          document.getElementById("last-update").innerText = "Fecha de actualización no disponible";
+        });
+    });
+  </script>
+</body>
+</html>
+
