@@ -74,10 +74,10 @@
       <button onclick="descargarExcel()">📄 Descargar Excel</button> 
       <button onclick="window.print()">📅 Descargar PDF</button>
     </div>
-      <div id="last-update" style="font-size: 12px; color: #444; margin-top: 8px; text-align: left;"></div>
+      <div id="last-update">Actualizado el s b. 12/07/2025  5:46:57,54</div>
   	
     <!-- Fecha de última actualización debajo de los botones -->
-    <div id="last-update"></div>
+    <div id="last-update">Actualizado el s b. 12/07/2025  5:46:57,54</div>
 
   </div>
 
@@ -87,12 +87,29 @@
     let entregasOriginal = [];
     let entregasFiltradas = [];
 
-    function convertirFecha(excelNumber) {
-      const baseDate = new Date(1899, 11, 30);
-      const dias = parseInt(excelNumber);
-      if (isNaN(dias)) return excelNumber;
-      const fecha = new Date(baseDate.getTime() + dias * 86400000);
-      return fecha.toLocaleDateString("es-AR", { day: '2-digit', month: '2-digit', year: 'numeric' });
+    function convertirFecha(valor) {
+  if (!valor) return "";
+
+  // Si ya viene en formato "dd/mm/yyyy"
+  if (typeof valor === 'string' && valor.includes('/')) return valor;
+
+  // Si es string tipo "30-01-2025", lo convertimos a "30/01/2025"
+  if (typeof valor === 'string' && valor.includes('-')) {
+    return valor.split('-').join('/');
+  }
+
+  // Si es número (fecha Excel)
+  const baseDate = new Date(1899, 11, 30);
+  const dias = parseInt(valor);
+  if (!isNaN(dias)) {
+    const fecha = new Date(baseDate.getTime() + dias * 86400000);
+    return fecha.toLocaleDateString("es-AR", {
+      day: '2-digit', month: '2-digit', year: 'numeric'
+    });
+  }
+
+  return valor;
+});
     }
 
     function fechaDentroDeRango(fechaStr, desdeStr, hastaStr) {
