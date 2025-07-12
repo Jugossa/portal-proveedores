@@ -1,41 +1,40 @@
 @echo off
 cd /d I:\Pagina\portal-proveedores
-echo Ejecutando actualización de index.html
-echo ================================================
 
-:: 1. Verificar si el servidor está corriendo en el puerto 3000
-echo Verificando si el servidor local está activo...
-curl --silent --fail http://localhost:3000 >nul 2>&1
-if errorlevel 1 (
-  echo 🔄 El servidor no está corriendo, se intentará iniciar...
-  start "Servidor Portal Proveedores" cmd /c "node server.js"
-  timeout /t 5 /nobreak >nul
-  echo 🔄 Verificando nuevamente...
-  curl --silent --fail http://localhost:3000 >nul 2>&1
-  if errorlevel 1 (
-    echo ❌ No se pudo iniciar el servidor. Abortando.
-    goto fin
-  ) else (
-    echo ✅ Servidor iniciado correctamente.
-  )
-) else (
-  echo ✅ Servidor ya está corriendo.
+echo =====================================
+echo 🔄 ACTUALIZANDO index.html
+echo =====================================
+
+:: 1. Verificar si hay cambios sin guardar
+git status --porcelain | findstr /r "^" >nul
+if %errorlevel%==0 (
+  echo 🔧 Detectados cambios sin guardar. Haciendo commit previo...
+  git add index.html lastUpdate.json actualizar-index.bat
+  git commit -m "Commit automático previo a actualización"
 )
 
-:: 2. Actualizar lastUpdate.json con la hora de modificación del index
+:: 2. Hacer pull con rebase
+echo 🔄 Obteniendo últimas actualizaciones de GitHub...
+git pull origin main --rebase
+if errorlevel 1 (
+  echo ❌ Error durante el pull. Por favor resolvé conflictos manualmente.
+  pause
+  exit /b
+)
+
+:: 3. Actualizar lastUpdate.json
 echo { "lastUpdate": "Actualizado el %date% %time%" } > lastUpdate.json
 
-:: 3. Hacer commit solo de index.html y lastUpdate.json
-echo Realizando commit y push a GitHub...
+:: 4. Commit y push
+echo 🚀 Subiendo cambios...
 git add index.html lastUpdate.json
-git commit -m "Actualización index %date% %time%"
+git commit -m "Actualización index.html %date% %time%"
 git push origin main
 
-:: 4. Hacer deploy en Render
-echo Haciendo deploy en Render...
-curl -X POST "https://api.render.com/deploy/srv-d1ohh53uibrs73cpso60?key=VKUJKxVuK2A"
+:: 5. Deploy en Render
+echo 🌐 Lanzando deploy en Render...
+curl -s -X POST "https://api.render.com/deploy/srv-d1ohh53uibrs73cpso60?key=VKUJKxVuK2A"
 
-:fin
 echo.
-echo 🟢 Proceso finalizado. index.html actualizado en el portal.
+echo ✅ index.html actualizado correctamente en GitHub y Render.
 pause
